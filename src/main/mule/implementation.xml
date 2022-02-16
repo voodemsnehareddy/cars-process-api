@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<flow name="postCustomerCar" doc:id="c59b5a8a-e4eb-439f-9bc5-c553e497420e" >
+		<logger level="INFO" doc:name="Init Logger" doc:id="dec88873-4418-496b-a130-c519f41459cc" message='#["postCustomerCar Flow Started"]'/>
+		<flow-ref doc:name="setValues" doc:id="ec2be823-e8a0-4f7f-b454-dcf3c46a1b25" name="setValues" />
+		<http:request method="POST" doc:name="CarBookingSystemRequest" doc:id="65e36a6e-84c3-4705-a132-483afd7c6af5" config-ref="HTTP_Request_configuration" path="/api/cars/customer">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"client_secret" : "${request.client_secret}",
+	"client_id" : "${request.client_id}"
+}]]]></http:headers>
+		</http:request>
+		<logger level="INFO" doc:name="Response Logger" doc:id="ca44996c-fc34-40b5-bb52-80637b637c0b" message="#[payload]"/>
+		<logger level="INFO" doc:name="End Logger" doc:id="41461698-05cd-46cb-91d3-d43b0132f93e" message='#["postCustomerCar Flow Finished"]'/>
+	</flow>
+	<flow name="postProviderCar" doc:id="742e00ad-b1b0-4be5-8b29-b65a0a9ba25e" >
+		<logger level="INFO" doc:name="Init Logger" doc:id="d46c23bd-5e31-492e-b98b-af87cc237f7b" message='#["postProviderCar Flow Started"]'/>
+		<flow-ref doc:name="setValues" doc:id="2414e1ad-9db1-4931-bbc8-a4ae994c4fc7" name="setValues" />
+		<http:request method="POST" doc:name="CarBookingSystem Request" doc:id="b0118704-b561-495e-8f85-5ef1c791fbd1" config-ref="HTTP_Request_configuration" path="/api/cars/provider">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"client_secret" : "${request.client_secret}",
+	"client_id" : "${request.client_id}"
+}]]]></http:headers>
+		</http:request>
+		<logger level="INFO" doc:name="Response Logger" doc:id="0e1b6636-c427-4261-aefa-1f66b5c25036" message="#[payload]"/>
+		<logger level="INFO" doc:name="End Logger" doc:id="c9e6788d-2485-4cdc-b061-be00b9ee5924" message='#["postProviderCar Flow Finished"]'/>
+	</flow>
+	<flow name="getCustomerCar" doc:id="a16c3907-653a-477d-af2e-bb89e48873e8" >
+		<logger level="INFO" doc:name="Init Logger" doc:id="f81a0225-897e-421f-8fac-83834be76bac" message='#["getCustomerCar Flow Started"]' />
+		<flow-ref doc:name="setValues" doc:id="05910b03-b73f-4c84-9338-9bdc42df0b1d" name="setValues"/>
+		<http:request method="GET" doc:name="CarBookingSystem Request" doc:id="ceb516fc-c6a1-4459-ba72-6913afa8daa6" config-ref="HTTP_Request_configuration" path="/api/cars/customer">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"client_secret" : "${request.client_secret}",
+	"client_id" : "${request.client_id}"
+}]]]></http:headers>
+		</http:request>
+		<ee:transform doc:name="Customer Mapping" doc:id="42854e94-8caf-467b-b4e9-6e616727727b" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+type currency=String{format: '.00'}
+---
+(payload map (item,index) ->{
+	"bookingId":(index),
+	"name": item.name,
+	"description": item.description,
+	"source":item.source,
+	"destination":item.destination,
+	"carType":item.cartype,
+	"price":item.price as Number as currency,
+	"status":item.status
+})]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="Payload Filter" doc:id="237fa97a-acae-4db9-95d8-a1226b06b930" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var prv=vars.provider
+var src=vars.source
+var dst=vars.destination
+fun filterResult()=
+if(prv=="" and src=="" and dst=="")
+	payload
+else if(prv=="" and src=="" and !(dst==""))
+	payload filter ((item, index) -> item.destination==dst)
+else if(prv=="" and !(src=="") and dst=="")
+	payload filter ((item, index) -> item.source==src)
+else if(!(prv=="") and src=="" and dst=="")
+	payload filter ((item, index) -> item.description==prv)
+else if(!(prv=="") and src=="" and !(dst==""))
+	payload filter ((item, index) -> item.destination==dst and item.description==prv)
+else if(prv=="" and !(src=="") and !(dst==""))
+	payload filter ((item, index) -> item.source==src and item.destination==dst)
+else if(!(prv=="") and !(src=="") and dst=="")
+	payload filter ((item, index) -> item.source==src and item.description==prv)
+else
+	payload filter ((item, index) -> item.source==src and item.destination==dst and item.description==prv)
+---
+filterResult()]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="End Logger" doc:id="1e7dfbff-e240-4f3a-a16c-71ed35d9a8d0" message='#["getCustomerCar Flow Finished"]'/>
+	</flow>
+	<flow name="getProviderCar" doc:id="bbcb3e52-c5e6-47a7-9419-0f2e7f453f47" >
+		<logger level="INFO" doc:name="Init Logger" doc:id="0c546acd-a1a9-420a-b680-32ab11f7abea" message='#["getProviderCar Flow Started"]' />
+		<flow-ref doc:name="setValues" doc:id="19e1825c-5318-478b-ad73-110bc6cdcf6f" name="setValues"/>
+		<http:request method="GET" doc:name="CarBookingSystem Request" doc:id="a5221211-26df-4a16-8616-758a3d89e038" config-ref="HTTP_Request_configuration" path="/api/cars/provider">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"client_secret" : "${request.client_secret}",
+	"client_id" : "${request.client_id}"
+}]]]></http:headers>
+		</http:request>
+		<ee:transform doc:name="Provider Mapping" doc:id="a9c3a7ba-9645-49dd-bde7-3bc53f3383cf" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+type currency=String{format: '.00'}
+---
+(payload map (item,index) ->{
+	"id":(index),
+	"name": item.name,
+	"description": item.description,
+	"source":item.source,
+	"destination":item.destination,
+	"carType":item.cartype,
+	"price":item.price as Number as currency,
+	"status":item.status
+})]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="Payload Filter" doc:id="33e2e29d-e072-4c24-be32-e491646bc8e8" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var prv=vars.provider
+var src=vars.source
+var dst=vars.destination
+fun filterResult()=
+if(prv=="" and src=="" and dst=="")
+	payload
+else if(prv=="" and src=="" and !(dst==""))
+	payload filter ((item, index) -> item.destination==dst)
+else if(prv=="" and !(src=="") and dst=="")
+	payload filter ((item, index) -> item.source==src)
+else if(!(prv=="") and src=="" and dst=="")
+	payload filter ((item, index) -> item.name==prv)
+else if(!(prv=="") and src=="" and !(dst==""))
+	payload filter ((item, index) -> item.destination==dst and item.name==prv)
+else if(prv=="" and !(src=="") and !(dst==""))
+	payload filter ((item, index) -> item.source==src and item.destination==dst)
+else if(!(prv=="") and !(src=="") and dst=="")
+	payload filter ((item, index) -> item.source==src and item.name==prv)
+else
+	payload filter ((item, index) -> item.source==src and item.destination==dst and item.name==prv)
+---
+filterResult()]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="End Logger" doc:id="2122d48c-70f8-4049-b9a8-1660cf68b002" message='#["getProviderCar Flow Finished"]'/>
+	</flow>
+	<sub-flow name="setValues" doc:id="f882f44d-e23c-4032-a679-0122b683698c" >
+		<set-variable value='#[attributes.queryParams.provider default ""]' doc:name="providerVariable" doc:id="7585ba1a-a284-4880-b18a-f30ca483200f" variableName="provider" />
+		<set-variable value='#[attributes.queryParams.source default ""]' doc:name="sourceVariable" doc:id="523d1547-dd48-4da2-9108-1d3955ce48ab" variableName="source"/>
+		<set-variable value='#[attributes.queryParams.destination default ""]' doc:name="destinationVariable" doc:id="4d4546bc-7db6-4abf-a5e3-6637909c8027" variableName="destination"/>
+		<set-variable value="#[payload]" doc:name="payloadVariable" doc:id="828056a2-58e2-4111-88a2-4d73ebcdb143" variableName="payloadVar"/>
+	</sub-flow>
+</mule>
